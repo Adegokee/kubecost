@@ -6,7 +6,15 @@ metadata:
 
 resources:
   - namespace.yaml
-  - application.yaml
+
+# Helm chart configuration
+helmCharts:
+  - name: cost-analyzer
+    repo: https://kubecost.github.io/cost-analyzer/
+    version: 2.1.0
+    releaseName: kubecost
+    namespace: kubecost
+    valuesFile: values.yaml
 
 # Common labels applied to all resources
 commonLabels:

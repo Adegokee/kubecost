@@ -20,8 +20,6 @@ spec:
     targetRevision: "2.1.0"  # Use latest stable version
     helm:
       releaseName: kubecost
-      valueFiles:
-        - values.yaml
       parameters:
         - name: kubecostToken
           value: ""  # Set your Kubecost token here for enterprise features
@@ -37,7 +35,7 @@ spec:
           value: "true"
         - name: ingress.className
           value: "nginx"
-        - name: ingress.annotations."cert-manager\.io/cluster-issuer"
+        - name: ingress.annotations.cert-manager\.io/cluster-issuer
           value: "letsencrypt-prod"
         - name: ingress.hosts[0].host
           value: "kubecost.your-domain.com"  # Update with actual domain
@@ -49,6 +47,25 @@ spec:
           value: "kubecost-tls"
         - name: ingress.tls[0].hosts[0]
           value: "kubecost.your-domain.com"  # Update with actual domain
+        # Cost allocation and monitoring settings
+        - name: costAnalyzer.resources.requests.cpu
+          value: "200m"
+        - name: costAnalyzer.resources.requests.memory
+          value: "256Mi"
+        - name: costAnalyzer.resources.limits.cpu
+          value: "1000m"
+        - name: costAnalyzer.resources.limits.memory
+          value: "1Gi"
+        - name: serviceAccount.create
+          value: "true"
+        - name: serviceAccount.name
+          value: "kubecost-cost-analyzer"
+        - name: podAnnotations.prometheus\.io/scrape
+          value: "true"
+        - name: podAnnotations.prometheus\.io/port
+          value: "9003"
+        - name: podAnnotations.prometheus\.io/path
+          value: "/metrics"
 
   destination:
     server: https://kubernetes.default.svc

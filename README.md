@@ -1,13 +1,33 @@
-kubecost/
-├── README.md                                    # Comprehensive documentation
-└── platform-tools/
-    └── kubecost/
-        ├── base/
-        │   ├── kustomization.yaml              # Base Kustomize configuration
-        │   ├── application.yaml                # ArgoCD Application manifest
-        │   ├── namespace.yaml                  # Namespace, RBAC, and NetworkPolicy
-        │   └── values.yaml                     # Base Helm values
-        └── overlays/
+# Kubecost Deployment via ArgoCD
+
+This repository contains the ArgoCD configuration to deploy Kubecost using Helm charts under the Platform-Tools project.
+
+## Quick Start - Choose Your Deployment Method
+
+### Method 1: Direct Helm Chart (Recommended for immediate deployment)
+
+Use the direct Helm chart application for the quickest deployment:
+
+```bash
+# Apply the direct Helm-based ArgoCD Application
+kubectl apply -f platform-tools/kubecost/base/application-helm-direct.yaml
+```
+
+### Method 2: GitOps with Kustomize (Recommended for production)
+
+1. Push this repository structure to your GitOps repository: `https://github.com/Adegokee/kubecost.git`
+2. Update the repository URL in the application manifests
+3. Apply the GitOps-based application:
+
+```bash
+# For development
+kubectl apply -f platform-tools/kubecost/overlays/development/application-dev.yaml
+
+# For production  
+kubectl apply -f platform-tools/kubecost/base/application-gitops.yaml
+```
+
+## Repository Structure
             ├── development/
             │   ├── kustomization.yaml          # Dev environment overlay
             │   └── values-dev.yaml             # Dev-specific values
@@ -284,6 +304,49 @@ All configuration is stored in Git, providing:
 - Version control for all changes
 - Easy rollback capabilities
 - Disaster recovery through GitOps
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. "app path does not exist" Error
+If you get the error: `application spec for platform-tools is invalid: InvalidSpecError: Unable to generate manifests in kubecost: rpc error: code = Unknown desc = kubecost: app path does not exist`
+
+**Solution**: Use the direct Helm chart approach instead:
+```bash
+kubectl apply -f platform-tools/kubecost/base/application-helm-direct.yaml
+```
+
+This bypasses path resolution issues by using the Helm chart directly from the repository.
+
+#### 2. Namespace Already Exists
+If the kubecost namespace already exists, remove the `CreateNamespace=true` syncOption from the application manifest.
+
+#### 3. Storage Class Issues
+Update the `persistentVolume.storageClass` parameter in the Helm values to match your cluster's available storage classes:
+```bash
+kubectl get storageclass
+```
+
+#### 4. Ingress Configuration
+Update the ingress host and TLS settings in the application values to match your domain and certificate setup.
+
+### Validation Steps
+
+After deployment, verify the installation:
+
+```bash
+# Check ArgoCD application status
+kubectl get application kubecost -n argocd
+
+# Check pod status in kubecost namespace
+kubectl get pods -n kubecost
+
+# Check service accessibility
+kubectl port-forward -n kubecost svc/kubecost-cost-analyzer 9090:9090
+
+# Access Kubecost UI at http://localhost:9090
+```
 
 ## Support and Documentation
 
