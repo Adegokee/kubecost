@@ -1,0 +1,86 @@
+# Kubecost Base Configuration Values
+# This file contains the base configuration for Kubecost deployment
+
+global:
+  # Enable cost allocation features
+  costAllocation:
+    enabled: true
+    
+  # Prometheus configuration
+  prometheus:
+    enabled: true
+    fqdn: "http://prometheus-server.monitoring.svc.cluster.local"
+    
+  # Grafana configuration  
+  grafana:
+    enabled: false # Use external Grafana if available
+    fqdn: "http://grafana.monitoring.svc.cluster.local"
+
+# Kubecost configuration
+kubecost:
+  # Cost allocation settings
+  costAllocation:
+    enabled: true
+    
+  # Right-sizing recommendations
+  rightSizing:
+    enabled: true
+    
+  # Cluster efficiency insights
+  clusterEfficiency:
+    enabled: true
+
+# Cost-analyzer configuration
+costAnalyzer:
+  # Image configuration
+  image:
+    repository: gcr.io/kubecost1/cost-analyzer
+    tag: latest
+    pullPolicy: Always
+    
+  # Resource requests and limits
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Persistent volume configuration
+persistentVolume:
+  enabled: true
+  size: 10Gi
+  storageClass: "" # Use default storage class
+  accessModes:
+    - ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 9090
+  targetPort: 9090
+
+# NetworkPolicy configuration
+networkPolicy:
+  enabled: false
+
+# Pod Security Policy
+podSecurityPolicy:
+  enabled: false
+
+# Service Account
+serviceAccount:
+  create: true
+  name: kubecost-cost-analyzer
+
+# Node selector and tolerations
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9003"
+  prometheus.io/path: "/metrics"

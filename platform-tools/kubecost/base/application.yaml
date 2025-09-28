@@ -1,0 +1,79 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubecost
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-tools
+  
+  source:
+    repoURL: https://kubecost.github.io/cost-analyzer/
+    chart: cost-analyzer
+    targetRevision: "2.1.0"  # Use latest stable version
+    helm:
+      releaseName: kubecost
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: kubecostToken
+          value: ""  # Set your Kubecost token here for enterprise features
+        - name: global.grafana.enabled
+          value: "false"  # Use external Grafana if available
+        - name: global.prometheus.enabled
+          value: "true"   # Enable built-in Prometheus
+        - name: persistentVolume.enabled
+          value: "true"   # Enable persistent storage
+        - name: persistentVolume.size
+          value: "10Gi"
+        - name: ingress.enabled
+          value: "true"
+        - name: ingress.className
+          value: "nginx"
+        - name: ingress.annotations."cert-manager\.io/cluster-issuer"
+          value: "letsencrypt-prod"
+        - name: ingress.hosts[0].host
+          value: "kubecost.your-domain.com"  # Update with actual domain
+        - name: ingress.hosts[0].paths[0].path
+          value: "/"
+        - name: ingress.hosts[0].paths[0].pathType
+          value: "Prefix"
+        - name: ingress.tls[0].secretName
+          value: "kubecost-tls"
+        - name: ingress.tls[0].hosts[0]
+          value: "kubecost.your-domain.com"  # Update with actual domain
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubecost
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  revisionHistoryLimit: 10
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

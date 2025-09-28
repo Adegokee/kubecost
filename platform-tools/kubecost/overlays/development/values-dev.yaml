@@ -1,0 +1,29 @@
+# Development Environment Kubecost Configuration
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubecost
+spec:
+  source:
+    helm:
+      parameters:
+        # Development-specific settings
+        - name: costAnalyzer.resources.requests.cpu
+          value: "100m"
+        - name: costAnalyzer.resources.requests.memory
+          value: "128Mi"
+        - name: costAnalyzer.resources.limits.cpu
+          value: "500m"
+        - name: costAnalyzer.resources.limits.memory
+          value: "512Mi"
+        - name: persistentVolume.size
+          value: "5Gi"
+        - name: ingress.hosts[0].host
+          value: "kubecost-dev.your-domain.com"
+        - name: ingress.tls[0].hosts[0]
+          value: "kubecost-dev.your-domain.com"
+        - name: ingress.tls[0].secretName
+          value: "kubecost-dev-tls"
+        # Enable debug logging in development
+        - name: costAnalyzer.logLevel
+          value: "debug"

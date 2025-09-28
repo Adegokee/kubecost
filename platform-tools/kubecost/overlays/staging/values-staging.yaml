@@ -1,0 +1,29 @@
+# Staging Environment Kubecost Configuration
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubecost
+spec:
+  source:
+    helm:
+      parameters:
+        # Staging-specific settings
+        - name: costAnalyzer.resources.requests.cpu
+          value: "150m"
+        - name: costAnalyzer.resources.requests.memory
+          value: "192Mi"
+        - name: costAnalyzer.resources.limits.cpu
+          value: "750m"
+        - name: costAnalyzer.resources.limits.memory
+          value: "768Mi"
+        - name: persistentVolume.size
+          value: "8Gi"
+        - name: ingress.hosts[0].host
+          value: "kubecost-staging.your-domain.com"
+        - name: ingress.tls[0].hosts[0]
+          value: "kubecost-staging.your-domain.com"
+        - name: ingress.tls[0].secretName
+          value: "kubecost-staging-tls"
+        # Info level logging for staging
+        - name: costAnalyzer.logLevel
+          value: "info"
