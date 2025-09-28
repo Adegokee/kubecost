@@ -1,86 +1,234 @@
-# Kubecost Base Configuration Values
-# This file contains the base configuration for Kubecost deployment
+# Kubecost Helm Chart Values Configuration
+# Official chart: https://github.com/kubecost/cost-analyzer-helm-chart
 
+# Global configuration
 global:
-  # Enable cost allocation features
-  costAllocation:
+  # Grafana configuration
+  grafana:
     enabled: true
-    
-  # Prometheus configuration
+    domainName: kubecost.local
+    scheme: "http"
+    proxy: true
+  
+  # Prometheus configuration - use existing cluster prometheus if available
   prometheus:
     enabled: true
-    fqdn: "http://prometheus-server.monitoring.svc.cluster.local"
-    
-  # Grafana configuration  
-  grafana:
-    enabled: false # Use external Grafana if available
-    fqdn: "http://grafana.monitoring.svc.cluster.local"
+    fqdn: http://prometheus-server.monitoring.svc.cluster.local:80
+    queryServiceBasePath: ""
+  
+  # Thanos configuration for long-term storage (optional)
+  thanos:
+    enabled: false
 
 # Kubecost configuration
-kubecost:
-  # Cost allocation settings
-  costAllocation:
-    enabled: true
-    
-  # Right-sizing recommendations
-  rightSizing:
-    enabled: true
-    
-  # Cluster efficiency insights
-  clusterEfficiency:
-    enabled: true
+kubecostFrontend:
+  image:
+    repository: gcr.io/kubecost1/frontend
+    tag: prod-1.106.0
+    pullPolicy: Always
 
 # Cost-analyzer configuration
-costAnalyzer:
-  # Image configuration
+kubecostModel:
   image:
-    repository: gcr.io/kubecost1/cost-analyzer
-    tag: latest
+    repository: gcr.io/kubecost1/cost-model
+    tag: prod-1.106.0
     pullPolicy: Always
-    
-  # Resource requests and limits
+  
+  # Resource allocation
   resources:
     requests:
-      cpu: 200m
-      memory: 256Mi
+      cpu: "200m"
+      memory: "512Mi"
     limits:
-      cpu: 1000m
-      memory: 1Gi
+      cpu: "800m"
+      memory: "2Gi"
 
-# Persistent volume configuration
-persistentVolume:
+  # Warm cache and savings
+  warmCache: false
+  warmSavingsCache: true
+  etl: true
+  
+  # Log level
+  logLevel: info
+
+# PostgreSQL configuration for ETL data
+postgresql:
   enabled: true
-  size: 10Gi
-  storageClass: "" # Use default storage class
-  accessModes:
-    - ReadWriteOnce
+  auth:
+    postgresPassword: "kubecost-postgres"
+    database: "kubecost"
+  primary:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+    persistence:
+      enabled: true
+      size: "10Gi"
+      storageClass: ""  # Use default storage class
 
+# Network costs (requires specific cloud provider setup)
+networkCosts:
+  enabled: false
+  
 # Service configuration
 service:
   type: ClusterIP
   port: 9090
   targetPort: 9090
+  annotations: {}
 
-# NetworkPolicy configuration
-networkPolicy:
-  enabled: false
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"  # Use nginx ingress controller
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.auth.svc.cluster.local/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.auth.svc.cluster.local/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: "x-auth-request-user,x-auth-request-email"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: kubecost.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: kubecost-tls
+      hosts:
+        - kubecost.yourdomain.com
 
-# Pod Security Policy
-podSecurityPolicy:
-  enabled: false
+# Persistence configuration
+persistentVolume:
+  enabled: true
+  size: "15Gi"
+  storageClass: ""  # Use default storage class
+  accessModes:
+    - ReadWriteOnce
 
-# Service Account
-serviceAccount:
-  create: true
-  name: kubecost-cost-analyzer
+# Service monitor for Prometheus scraping
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    prometheus: kube-prometheus
 
-# Node selector and tolerations
+# Grafana configuration
+grafana:
+  enabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# Priority class for scheduling
+priorityClassName: "system-cluster-critical"
+
+# Node selector (optional)
 nodeSelector: {}
+
+# Tolerations (optional)
 tolerations: []
+
+# Affinity (optional)
 affinity: {}
 
-# Pod annotations
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# Security context for containers
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # Kubecost needs to write some files
+  runAsNonRoot: true
+  runAsUser: 1001
+  capabilities:
+    drop:
+      - ALL
+
+# Resource recommendations and sizing
+recommendationEngine:
+  enabled: true
+
+# Cluster controller for multi-cluster setups
+clusterController:
+  enabled: false
+
+# Reporting configuration
+reporting:
+  productAnalytics: false
+
+# Cost allocation configuration
+costAnalyzerConfig:
+  # Currency settings
+  currencyCode: "USD"
+  
+  # Custom pricing (optional)
+  customPricing:
+    enabled: false
+  
+  # AWS configuration (if running on AWS)
+  awsServiceKeyName: ""
+  awsServiceKeySecret: ""
+  
+  # Azure configuration (if running on Azure)  
+  azureSubscriptionID: ""
+  azureServiceKeyName: ""
+  azureServiceKeySecret: ""
+  
+  # GCP configuration (if running on GCP)
+  gcpServiceKeyName: ""
+  gcpServiceKeySecret: ""
+
+# Image pull secrets (if using private registries)
+imagePullSecrets: []
+
+# Annotations for pods
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9003"
-  prometheus.io/path: "/metrics"
+
+# Labels for pods  
+podLabels: {}
+
+# Liveness and readiness probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Enable budget alerts
+budgetAlertsEnabled: true
+
+# Enable cost allocation by namespace, deployment, service, etc.
+kubecostAggregator:
+  enabled: true

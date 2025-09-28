@@ -1,0 +1,219 @@
+---
+# Service Account for Kubecost
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubecost-cost-analyzer
+  namespace: kubecost
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+automountServiceAccountToken: true
+
+---
+# ClusterRole for Kubecost to read cluster resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubecost-cost-analyzer
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+rules:
+  # Core resources for cost calculation
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - nodes/metrics
+      - services
+      - resourcequotas
+      - replicationcontrollers
+      - limitranges
+      - persistentvolumeclaims
+      - persistentvolumes
+      - namespaces
+      - endpoints
+      - pods
+      - configmaps
+    verbs: ["get", "list", "watch"]
+  
+  # Apps resources
+  - apiGroups: ["apps"]
+    resources:
+      - statefulsets
+      - deployments
+      - daemonsets
+      - replicasets
+    verbs: ["get", "list", "watch"]
+  
+  # Batch resources
+  - apiGroups: ["batch"]
+    resources:
+      - cronjobs
+      - jobs
+    verbs: ["get", "list", "watch"]
+  
+  # Autoscaling resources
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+    verbs: ["get", "list", "watch"]
+  
+  # Policy resources
+  - apiGroups: ["policy"]
+    resources:
+      - poddisruptionbudgets
+    verbs: ["get", "list", "watch"]
+  
+  # Storage resources
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs: ["get", "list", "watch"]
+  
+  # Metrics resources
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - pods
+      - nodes
+    verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding for Kubecost
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubecost-cost-analyzer
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubecost-cost-analyzer
+subjects:
+  - kind: ServiceAccount
+    name: kubecost-cost-analyzer
+    namespace: kubecost
+
+---
+# Role for namespace-specific operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubecost-cost-analyzer
+  namespace: kubecost
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+      - secrets
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources:
+      - events
+    verbs: ["create"]
+
+---
+# RoleBinding for namespace-specific operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubecost-cost-analyzer
+  namespace: kubecost
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubecost-cost-analyzer
+subjects:
+  - kind: ServiceAccount
+    name: kubecost-cost-analyzer
+    namespace: kubecost
+
+---
+# Pod Security Policy (if PSP is enabled in cluster)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: kubecost-cost-analyzer
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+---
+# ClusterRole for PSP (if PSP is enabled)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubecost-cost-analyzer-psp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+rules:
+  - apiGroups: ['policy']
+    resources: ['podsecuritypolicies']
+    verbs: ['use']
+    resourceNames:
+      - kubecost-cost-analyzer
+
+---
+# ClusterRoleBinding for PSP (if PSP is enabled)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubecost-cost-analyzer-psp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: cost-analyzer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubecost-cost-analyzer-psp
+subjects:
+  - kind: ServiceAccount
+    name: kubecost-cost-analyzer
+    namespace: kubecost

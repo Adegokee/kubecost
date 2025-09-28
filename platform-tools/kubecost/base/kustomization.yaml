@@ -4,24 +4,67 @@ kind: Kustomization
 metadata:
   name: kubecost-base
 
-resources:
-  - namespace.yaml
-
 # Helm chart configuration
 helmCharts:
   - name: cost-analyzer
     repo: https://kubecost.github.io/cost-analyzer/
-    version: 2.1.0
+    version: "2.0.4"  # Use the latest stable version
     releaseName: kubecost
     namespace: kubecost
     valuesFile: values.yaml
+    includeCRDs: true
+
+# Resources to include
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - ingress.yaml
 
 # Common labels applied to all resources
 commonLabels:
   app.kubernetes.io/name: kubecost
+  app.kubernetes.io/instance: kubecost
+  app.kubernetes.io/component: cost-analyzer
   app.kubernetes.io/part-of: platform-tools
   app.kubernetes.io/managed-by: argocd
 
 # Common annotations
 commonAnnotations:
   argocd.argoproj.io/sync-wave: "1"
+  
+# Namespace for all resources
+namespace: kubecost
+
+# Name prefix for resources
+namePrefix: kubecost-
+
+# Configuration transformers
+configurations:
+  - https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/examples/transformerconfigs/default/namereference.yaml
+
+# Patches for security and customization
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: cost-analyzer
+    patch: |-
+      - op: add
+        path: /spec/template/spec/securityContext
+        value:
+          runAsNonRoot: true
+          runAsUser: 1001
+          fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+              - ALL

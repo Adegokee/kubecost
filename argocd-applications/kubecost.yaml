@@ -1,0 +1,77 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubecost
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/part-of: platform-tools
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: argocd-notifications
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # Project configuration
+  project: platform-tools
+  
+  # Source repository configuration
+  source:
+    repoURL: https://git.edusuc.net/WEBFORX/ArgoCD-gitops
+    targetRevision: main
+    path: platform-tools/kubecost/overlays/production
+    
+    # Kustomize configuration
+    kustomize:
+      commonLabels:
+        argocd.argoproj.io/instance: kubecost
+      namePrefix: ""
+      nameSuffix: ""
+  
+  # Destination cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubecost
+  
+  # Sync policy configuration
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health and status configuration
+  revisionHistoryLimit: 10
+  
+  # Ignore differences for dynamic fields
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+    - group: ""
+      kind: ConfigMap
+      jsonPointers:
+        - /data
+      name: kubecost-cost-analyzer
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data

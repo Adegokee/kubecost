@@ -1,21 +1,65 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-metadata:
-  name: kubecost-staging
-
-namespace: kubecost
-
-resources:
+# Reference to base configuration
+bases:
   - ../../base
 
-patchesStrategicMerge:
-  - values-staging.yaml
+# Namespace override for staging
+namespace: kubecost
 
-# Environment-specific labels
+# Staging-specific labels
 commonLabels:
   environment: staging
-  
-# Environment-specific annotations  
+  tier: platform
+
+# Staging-specific annotations
 commonAnnotations:
-  deployment.environment: "staging"
+  argocd.argoproj.io/sync-options: "Prune=true"
+  
+# Resources specific to staging
+resources:
+  - staging-values.yaml
+
+# Patches for staging environment
+patches:
+  # Reduce resource limits for staging
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: cost-analyzer
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+
+  # Staging ingress hostname
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: kubecost-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: "kubecost-staging.yourdomain.com"
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "kubecost-staging.yourdomain.com"
+
+# Image transformations for staging
+images:
+  - name: gcr.io/kubecost1/cost-model
+    newTag: prod-1.106.0
+  - name: gcr.io/kubecost1/frontend
+    newTag: prod-1.106.0

@@ -1,0 +1,93 @@
+# Staging-specific values for Kubecost
+# Reduced resources for staging environment
+
+# Staging resource allocation
+kubecostModel:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+# Disable ETL for staging to reduce resource usage
+kubecostModel:
+  etl: false
+  
+# Smaller persistence settings for staging
+persistentVolume:
+  enabled: true
+  size: "10Gi"  # Smaller storage for staging
+  storageClass: "standard"  # Use standard storage class
+
+# Staging PostgreSQL configuration with reduced resources
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "staging-kubecost-postgres-password"
+    database: "kubecost_staging"
+  primary:
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "512Mi"
+    persistence:
+      enabled: true
+      size: "5Gi"
+      storageClass: "standard"
+
+# Staging Grafana settings
+grafana:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: "standard"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# Staging ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # No SSL for staging
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+  hosts:
+    - host: kubecost-staging.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: kubecost-staging-tls
+      hosts:
+        - kubecost-staging.yourdomain.com
+
+# Disable network costs for staging
+networkCosts:
+  enabled: false
+
+# Staging monitoring (reduced frequency)
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    prometheus: kube-prometheus
+    environment: staging
+
+# Disable budget alerts for staging
+budgetAlertsEnabled: false
+
+# No specific node affinity for staging
+affinity: {}
+
+# No tolerations for staging
+tolerations: []

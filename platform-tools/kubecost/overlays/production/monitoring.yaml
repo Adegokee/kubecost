@@ -1,0 +1,182 @@
+---
+# ServiceMonitor for Prometheus scraping in production
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kubecost-cost-analyzer
+  namespace: kubecost
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus
+    environment: production
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cost-analyzer
+      app.kubernetes.io/instance: kubecost
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+    - port: http
+      path: /metrics
+      interval: 60s
+      scrapeTimeout: 30s
+
+---
+# PrometheusRule for Kubecost alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubecost-alerts
+  namespace: kubecost
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus
+    environment: production
+spec:
+  groups:
+    - name: kubecost.rules
+      interval: 30s
+      rules:
+        # High CPU usage alert
+        - alert: KubecostHighCPUUsage
+          expr: rate(container_cpu_usage_seconds_total{namespace="kubecost", pod=~"kubecost-cost-analyzer-.*"}[5m]) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            component: kubecost
+          annotations:
+            summary: "Kubecost high CPU usage"
+            description: "Kubecost cost-analyzer pod {{ $labels.pod }} is using more than 80% CPU for 5 minutes"
+        
+        # High memory usage alert
+        - alert: KubecostHighMemoryUsage
+          expr: container_memory_usage_bytes{namespace="kubecost", pod=~"kubecost-cost-analyzer-.*"} / container_spec_memory_limit_bytes > 0.9
+          for: 5m
+          labels:
+            severity: warning
+            component: kubecost
+          annotations:
+            summary: "Kubecost high memory usage"
+            description: "Kubecost cost-analyzer pod {{ $labels.pod }} is using more than 90% memory for 5 minutes"
+        
+        # Pod restart alert
+        - alert: KubecostPodRestarting
+          expr: rate(kube_pod_container_status_restarts_total{namespace="kubecost"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: kubecost
+          annotations:
+            summary: "Kubecost pod restarting"
+            description: "Kubecost pod {{ $labels.pod }} has been restarting frequently"
+        
+        # Service unavailable alert
+        - alert: KubecostServiceDown
+          expr: up{job="kubecost-cost-analyzer"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            component: kubecost
+          annotations:
+            summary: "Kubecost service is down"
+            description: "Kubecost cost-analyzer service has been down for more than 2 minutes"
+        
+        # Disk usage alert
+        - alert: KubecostHighDiskUsage
+          expr: kubecost_pv_usage_percent > 85
+          for: 5m
+          labels:
+            severity: warning
+            component: kubecost
+          annotations:
+            summary: "Kubecost high disk usage"
+            description: "Kubecost persistent volume usage is above 85%"
+        
+        # Data collection alert
+        - alert: KubecostDataCollectionFailed
+          expr: increase(kubecost_load_balancer_errors_total[10m]) > 5
+          for: 5m
+          labels:
+            severity: warning
+            component: kubecost
+          annotations:
+            summary: "Kubecost data collection issues"
+            description: "Kubecost is experiencing data collection errors"
+
+---
+# Grafana Dashboard ConfigMap for Kubecost
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubecost-dashboard
+  namespace: kubecost
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    grafana_folder: "Kubecost"
+  labels:
+    app.kubernetes.io/name: kubecost
+    app.kubernetes.io/component: monitoring
+    grafana_dashboard: "1"
+data:
+  kubecost-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Kubecost Overview",
+        "tags": ["kubecost", "cost", "monitoring"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Total Cluster Cost (Monthly)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "kubecost_cluster_costs_total",
+                "legendFormat": "Total Cost"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Cost by Namespace",
+            "type": "piechart",
+            "targets": [
+              {
+                "expr": "kubecost_namespace_costs",
+                "legendFormat": "{{ namespace }}"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Resource Efficiency",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "kubecost_cluster_cpu_efficiency",
+                "legendFormat": "CPU Efficiency"
+              },
+              {
+                "expr": "kubecost_cluster_memory_efficiency", 
+                "legendFormat": "Memory Efficiency"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-30d",
+          "to": "now"
+        },
+        "refresh": "5m"
+      }
+    }

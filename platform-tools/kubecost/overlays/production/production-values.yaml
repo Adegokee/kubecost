@@ -1,0 +1,138 @@
+# Production-specific values for Kubecost
+# These values override the base values.yaml
+
+# Production resource allocation
+kubecostModel:
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+
+# Enable ETL for production
+kubecostModel:
+  etl: true
+  etlBucketConfigSecret: kubecost-object-store
+  
+# Production persistence settings
+persistentVolume:
+  enabled: true
+  size: "50Gi"  # Larger storage for production
+  storageClass: "fast-ssd"  # Use high-performance storage class
+
+# Production PostgreSQL configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "production-kubecost-postgres-password"  # Use secret in real deployment
+    database: "kubecost_prod"
+  primary:
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+    persistence:
+      enabled: true
+      size: "20Gi"
+      storageClass: "fast-ssd"
+
+# Production Grafana settings
+grafana:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: "fast-ssd"
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  
+  # Grafana admin credentials (use secrets in real deployment)
+  adminPassword: "change-me-in-production"
+
+# Production ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Production rate limiting
+    nginx.ingress.kubernetes.io/rate-limit-connections: "20"
+    nginx.ingress.kubernetes.io/rate-limit-rps: "10"
+  hosts:
+    - host: kubecost.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: kubecost-prod-tls
+      hosts:
+        - kubecost.yourdomain.com
+
+# Enable network costs for production (requires cloud provider setup)
+networkCosts:
+  enabled: true
+  config:
+    services:
+      - service: "amazon-web-services"
+        enabled: true
+      - service: "azure"
+        enabled: false
+      - service: "gcp"
+        enabled: false
+
+# Production monitoring and alerting
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    prometheus: kube-prometheus
+    environment: production
+
+# Enable budget alerts for production
+budgetAlertsEnabled: true
+
+# Production security settings
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# Node affinity for production workloads
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/worker
+              operator: In
+              values: ["true"]
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: ["kubecost"]
+          topologyKey: kubernetes.io/hostname
+
+# Tolerations for production nodes (if applicable)
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "platform"
+    effect: "NoSchedule"

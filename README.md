@@ -1,364 +1,543 @@
 # Kubecost Deployment via ArgoCD
 
-This repository contains the ArgoCD configuration to deploy Kubecost using Helm charts under the Platform-Tools project.
-
-## Quick Start - Choose Your Deployment Method
-
-### Method 1: Direct Helm Chart (Recommended for immediate deployment)
-
-Use the direct Helm chart application for the quickest deployment:
-
-```bash
-# Apply the direct Helm-based ArgoCD Application
-kubectl apply -f platform-tools/kubecost/base/application-helm-direct.yaml
-```
-
-### Method 2: GitOps with Kustomize (Recommended for production)
-
-1. Push this repository structure to your GitOps repository: `https://github.com/Adegokee/kubecost.git`
-2. Update the repository URL in the application manifests
-3. Apply the GitOps-based application:
-
-```bash
-# For development
-kubectl apply -f platform-tools/kubecost/overlays/development/application-dev.yaml
-
-# For production  
-kubectl apply -f platform-tools/kubecost/base/application-gitops.yaml
-```
-
-## Repository Structure
-            ├── development/
-            │   ├── kustomization.yaml          # Dev environment overlay
-            │   └── values-dev.yaml             # Dev-specific values
-            ├── staging/
-            │   ├── kustomization.yaml          # Staging environment overlay
-            │   └── values-staging.yaml         # Staging-specific values
-            └── production/
-                ├── kustomization.yaml          # Production environment overlay
-                └── values-production.yaml      # Production-specific values
-
-
-# Kubecost Deployment via ArgoCD
-
-This repository contains the ArgoCD application configuration for deploying Kubecost to Kubernetes clusters using the official Helm chart under the platform-tools project.
+This repository contains the GitOps configuration for deploying Kubecost into Kubernetes clusters using ArgoCD with Kustomize and Helm.
 
 ## Overview
 
-Kubecost provides cost visibility, allocation, and optimization insights for Kubernetes clusters. This deployment:
-- Uses ArgoCD for GitOps-driven lifecycle management
-- Deploys into the `kubecost` namespace
-- Provides cost allocation by namespace, workload, and labels
-- Enables optimization recommendations for right-sizing and cluster efficiency
-- Supports multiple environments (development, staging, production)
+Kubecost provides real-time cost visibility and insights for Kubernetes workloads. This deployment setup includes:
 
-## Architecture
+- **Cost Monitoring**: Track costs by namespace, deployment, service, and labels
+- **Resource Optimization**: Get recommendations for rightsizing and efficiency improvements  
+- **Multi-Environment Support**: Separate configurations for staging and production
+- **Security**: RBAC, network policies, and authentication integration
+- **Monitoring**: Prometheus metrics and Grafana dashboards
+- **High Availability**: Production setup with multiple replicas and persistent storage
+
+## Repository Structure
 
 ```
 platform-tools/
-└── kubecost/
-    ├── base/
-    │   ├── kustomization.yaml          # Base kustomization config
-    │   ├── application.yaml            # ArgoCD Application manifest  
-    │   ├── namespace.yaml              # Namespace and RBAC resources
-    │   └── values.yaml                 # Base Helm values
-    └── overlays/
-        ├── development/
-        │   ├── kustomization.yaml      # Development overlay
-        │   └── values-dev.yaml         # Development-specific values
-        ├── staging/
-        │   ├── kustomization.yaml      # Staging overlay
-        │   └── values-staging.yaml     # Staging-specific values
-        └── production/
-            ├── kustomization.yaml      # Production overlay
-            └── values-production.yaml  # Production-specific values
+├── kubecost/
+│   ├── base/                           # Base Kustomize configuration
+│   │   ├── kustomization.yaml          # Base Kustomize with Helm chart
+│   │   ├── values.yaml                 # Base Kubecost configuration
+│   │   ├── namespace.yaml              # Namespace and network policies
+│   │   ├── rbac.yaml                   # Service accounts and RBAC
+│   │   └── ingress.yaml                # Ingress configurations
+│   └── overlays/
+│       ├── production/                 # Production environment
+│       │   ├── kustomization.yaml      # Production overrides
+│       │   ├── production-values.yaml  # Production-specific values
+│       │   └── monitoring.yaml         # Prometheus rules and dashboards
+│       └── staging/                    # Staging environment
+│           ├── kustomization.yaml      # Staging overrides
+│           └── staging-values.yaml     # Staging-specific values
+└── argocd-applications/
+    └── kubecost.yaml                   # ArgoCD Application manifest
 ```
 
 ## Prerequisites
 
-1. **ArgoCD** installed and configured in the cluster
-2. **platform-tools** project exists in ArgoCD
-3. **Ingress Controller** (nginx recommended) for UI access
-4. **Cert Manager** for TLS certificate automation (optional)
-5. **Prometheus** for metrics collection (can use built-in or external)
+Before deploying Kubecost, ensure the following components are available in your cluster:
 
-## Deployment Steps
+### Required Components
+- **ArgoCD** installed and configured
+- **Nginx Ingress Controller** for external access
+- **Cert-Manager** for TLS certificate management  
+- **Prometheus** for metrics collection (or let Kubecost deploy its own)
+- **Storage Class** for persistent volumes
 
-### Step 1: Update Configuration
+### Optional Components
+- **OAuth2-Proxy** or similar for authentication
+- **Grafana** (Kubecost can deploy its own)
+- **External Prometheus** (if not using Kubecost's built-in)
 
-1. **Update Domain Names**:
-   Edit the ingress host values in the environment-specific values files:
+## Quick Start
+
+### 1. Clone Repository
+```bash
+git clone https://git.edusuc.net/WEBFORX/ArgoCD-gitops.git
+cd ArgoCD-gitops
+```
+
+### 2. Customize Configuration
+
+Update the following files with your environment-specific settings:
+
+#### Update Domain Names
+Edit `platform-tools/kubecost/base/values.yaml`:
+```yaml
+ingress:
+  hosts:
+    - host: kubecost.yourdomain.com  # Replace with your domain
+```
+
+#### Update Production Overlay  
+Edit `platform-tools/kubecost/overlays/production/production-values.yaml`:
+```yaml
+ingress:
+  hosts:
+    - host: kubecost.yourdomain.com  # Replace with your domain
+```
+
+#### Update ArgoCD Application Repository
+Edit `argocd-applications/kubecost.yaml`:
+```yaml
+spec:
+  source:
+    repoURL: https://git.edusuc.net/WEBFORX/ArgoCD-gitops  # Your repo URL
+```
+
+### 3. Deploy to ArgoCD
+
+Apply the ArgoCD Application:
+```bash
+kubectl apply -f argocd-applications/kubecost.yaml
+```
+
+### 4. Verify Deployment
+
+Check ArgoCD UI or CLI:
+```bash
+argocd app get kubecost
+argocd app sync kubecost
+```
+
+Monitor pod status:
+```bash
+kubectl get pods -n kubecost -w
+```
+
+## Configuration Details
+
+### Security Configuration
+
+The deployment includes several security features:
+
+#### RBAC
+- Dedicated service account `kubecost-cost-analyzer`
+- ClusterRole with minimal required permissions for cost calculation
+- Role and RoleBinding for namespace-specific operations
+- Pod Security Policy (if enabled in cluster)
+
+#### Network Security
+- NetworkPolicy restricting ingress/egress traffic
+- Ingress with authentication integration (OAuth2-Proxy)
+- TLS termination with cert-manager
+- Security headers and rate limiting
+
+#### Pod Security
+- Non-root user execution (UID 1001)
+- Read-only root filesystem where possible
+- Security context with dropped capabilities
+- seccomp profile applied
+
+### Storage Configuration
+
+#### Production
+- 50GB persistent volume for cost data
+- 20GB PostgreSQL storage
+- 10GB Grafana storage
+- Fast SSD storage class recommended
+
+#### Staging  
+- 10GB persistent volume for cost data
+- 5GB PostgreSQL storage
+- 2GB Grafana storage
+- Standard storage class
+
+### Resource Allocation
+
+#### Production Resources
+```yaml
+kubecostModel:
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m" 
+      memory: "4Gi"
+```
+
+#### Staging Resources
+```yaml
+kubecostModel:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+```
+
+## Environment-Specific Deployments
+
+### Production Environment
+
+Deploy to production:
+```bash
+# Update ArgoCD Application to point to production overlay
+kubectl patch application kubecost -n argocd --type merge -p '{"spec":{"source":{"path":"platform-tools/kubecost/overlays/production"}}}'
+```
+
+Production features:
+- High availability with 2 replicas
+- Enhanced monitoring and alerting
+- Increased resource limits
+- Network cost monitoring enabled
+- Budget alerts configured
+
+### Staging Environment
+
+Deploy to staging:
+```bash
+# Update ArgoCD Application to point to staging overlay  
+kubectl patch application kubecost -n argocd --type merge -p '{"spec":{"source":{"path":"platform-tools/kubecost/overlays/staging"}}}'
+```
+
+Staging features:
+- Single replica for cost savings
+- Reduced resource allocation
+- No SSL/TLS (optional)
+- Limited monitoring
+- No budget alerts
+
+## Access and Usage
+
+### Accessing Kubecost UI
+
+#### External Access (with authentication)
+1. Ensure ingress hostname is configured in DNS
+2. Access via: `https://kubecost.yourdomain.com`
+3. Authenticate via configured OAuth provider
+
+#### Internal Access (no authentication)
+1. Port-forward to service:
+   ```bash
+   kubectl port-forward -n kubecost svc/kubecost-cost-analyzer 9090:9090
+   ```
+2. Access via: `http://localhost:9090`
+
+#### kubectl proxy Access
+```bash
+kubectl proxy
+# Access via: http://localhost:8001/api/v1/namespaces/kubecost/services/kubecost-cost-analyzer:9090/proxy/
+```
+
+### Key Features and Usage
+
+#### Cost Allocation Dashboard
+- View costs by namespace, deployment, service
+- Filter by time range (hourly, daily, monthly)  
+- Compare costs across different periods
+- Export cost reports
+
+#### Optimization Recommendations
+- Navigate to "Savings" tab
+- Review rightsizing recommendations
+- Identify unused resources
+- Cluster efficiency metrics
+
+#### Budget Alerts (Production only)
+- Set up budget limits per namespace/team
+- Configure Slack/email notifications
+- Monitor spending trends
+
+#### API Access
+```bash
+# Get cost allocation data
+curl "http://kubecost.yourdomain.com/model/allocation?window=7d&aggregate=namespace"
+
+# Get cluster costs
+curl "http://kubecost.yourdomain.com/model/costDataModel?timeWindow=7d"
+```
+
+## Monitoring and Alerting
+
+### Prometheus Metrics
+
+Kubecost exposes metrics on port 9003:
+- `kubecost_cluster_costs_total` - Total cluster costs
+- `kubecost_namespace_costs` - Per-namespace costs  
+- `kubecost_cluster_cpu_efficiency` - CPU efficiency percentage
+- `kubecost_cluster_memory_efficiency` - Memory efficiency percentage
+
+### Grafana Dashboards
+
+Pre-configured dashboard includes:
+- Total cluster cost trends
+- Cost breakdown by namespace
+- Resource efficiency metrics
+- Cost per CPU/memory hour
+
+### AlertManager Rules
+
+Production deployment includes alerts for:
+- High CPU/memory usage (>80%/90%)
+- Pod restarts
+- Service unavailability  
+- High disk usage (>85%)
+- Data collection failures
+
+## Cloud Provider Integration
+
+### AWS Integration
+
+For accurate AWS costs, configure:
+
+1. Create IAM role with cost and billing permissions:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow", 
+         "Action": [
+           "ce:GetRightsizingRecommendation",
+           "ce:GetDimensionValues",
+           "ce:GetReservationCoverage", 
+           "ce:ListCostCategoryDefinitions",
+           "ce:GetRightsizingRecommendation",
+           "ce:GetCostAndUsage"
+         ],
+         "Resource": "*"
+       }
+     ]
+   }
+   ```
+
+2. Update values.yaml:
    ```yaml
-   # In values-dev.yaml, values-staging.yaml, values-production.yaml
-   - name: ingress.hosts[0].host
-     value: "kubecost-dev.your-domain.com"  # Replace with actual domain
+   costAnalyzerConfig:
+     awsServiceKeyName: "aws-service-key"
+     awsServiceKeySecret: "aws-secret"
    ```
 
-2. **Configure Storage Class** (if needed):
-   Update the storage class in `base/values.yaml`:
+3. Create secret:
+   ```bash
+   kubectl create secret generic aws-service-key \
+     --from-literal=service-key.json='{"access_key":"YOUR_ACCESS_KEY","secret_key":"YOUR_SECRET_KEY"}' \
+     -n kubecost
+   ```
+
+### Azure Integration
+
+For Azure cost data:
+
+1. Create service principal with billing reader permissions
+2. Update values.yaml:
    ```yaml
-   persistentVolume:
-     storageClass: "your-storage-class"  # Set appropriate storage class
+   costAnalyzerConfig:
+     azureSubscriptionID: "your-subscription-id"
+     azureServiceKeyName: "azure-service-key" 
+     azureServiceKeySecret: "azure-secret"
    ```
 
-3. **Set Kubecost Token** (for Enterprise features):
-   Update the kubecostToken parameter in production values:
-   ```yaml
-   - name: kubecostToken
-     value: "your-enterprise-token"  # Set your Kubecost enterprise token
-   ```
+### GCP Integration
 
-### Step 2: Apply to ArgoCD
+For Google Cloud cost data:
 
-Choose one of the following methods:
-
-#### Method A: Direct Application
-```bash
-# Apply the development environment
-kubectl apply -k overlays/development/
-
-# Apply the staging environment  
-kubectl apply -k overlays/staging/
-
-# Apply the production environment
-kubectl apply -k overlays/production/
-```
-
-#### Method B: ArgoCD CLI
-```bash
-# Create ArgoCD application for development
-argocd app create kubecost-dev \\
-  --repo https://git.edusuc.net/WEBFORX/ArgoCD-gitops \\
-  --path platform-tools/kubecost/overlays/development \\
-  --dest-server https://kubernetes.default.svc \\
-  --dest-namespace kubecost \\
-  --project platform-tools \\
-  --sync-policy automated
-```
-
-#### Method C: ArgoCD UI
-1. Navigate to ArgoCD UI
-2. Click "+ NEW APP"
-3. Fill in the application details:
-   - **Application Name**: kubecost
-   - **Project**: platform-tools
-   - **Repository URL**: https://git.edusuc.net/WEBFORX/ArgoCD-gitops
-   - **Path**: platform-tools/kubecost/overlays/production (or desired environment)
-   - **Cluster URL**: https://kubernetes.default.svc
-   - **Namespace**: kubecost
-4. Enable auto-sync if desired
-5. Click "CREATE"
-
-### Step 3: Verify Deployment
-
-1. **Check ArgoCD Application Status**:
-   ```bash
-   argocd app get kubecost
-   ```
-
-2. **Verify Pods are Running**:
-   ```bash
-   kubectl get pods -n kubecost
-   ```
-
-3. **Check Services**:
-   ```bash
-   kubectl get svc -n kubecost
-   ```
-
-4. **Verify Ingress** (if configured):
-   ```bash
-   kubectl get ingress -n kubecost
-   ```
-
-## Accessing Kubecost
-
-### Via Ingress (Recommended)
-If ingress is configured, access Kubecost at:
-- Development: https://kubecost-dev.your-domain.com
-- Staging: https://kubecost-staging.your-domain.com  
-- Production: https://kubecost.your-domain.com
-
-### Via Port Forward
-```bash
-kubectl port-forward -n kubecost svc/kubecost-cost-analyzer 9090:9090
-```
-Then access at: http://localhost:9090
-
-### Via LoadBalancer
-If using LoadBalancer service type, get the external IP:
-```bash
-kubectl get svc -n kubecost kubecost-cost-analyzer
-```
-
-## Configuration Options
-
-### Cost Allocation Features
-
-Kubecost provides several cost allocation views:
-
-1. **By Namespace**: View costs broken down by Kubernetes namespace
-2. **By Workload**: See costs for deployments, statefulsets, daemonsets
-3. **By Label**: Allocate costs based on custom labels
-4. **By Service**: Track costs per Kubernetes service
-
-### Optimization Features
-
-1. **Right-sizing Recommendations**: Suggests optimal CPU/memory requests
-2. **Unused Resource Detection**: Identifies unutilized resources
-3. **Cluster Efficiency Metrics**: Overall cluster utilization insights
-
-### Integration Options
-
-- **Prometheus Integration**: Uses Prometheus for metrics collection
-- **Grafana Dashboards**: Pre-built dashboards for visualization
-- **Slack/Teams Alerts**: Cost anomaly notifications
-- **CSV/API Export**: Export cost data for external analysis
-
-## Environment-Specific Settings
-
-### Development
-- Reduced resource requests/limits
-- Smaller persistent volume (5Gi)
-- Debug logging enabled
-- Single replica
-
-### Staging  
-- Medium resource allocation
-- Standard persistent volume (8Gi)
-- Info level logging
-- Single replica
-
-### Production
-- Full resource allocation
-- Large persistent volume (20Gi)
-- Error level logging only
-- High availability (2 replicas)
-- Enterprise features enabled
-
-## Monitoring and Alerts
-
-### Metrics Exposed
-Kubecost exposes Prometheus metrics at `/metrics` endpoint on port 9003:
-- Cost allocation metrics
-- Resource utilization metrics  
-- Right-sizing recommendations
-
-### Health Checks
-- **Readiness Probe**: `/readyz` on port 9090
-- **Liveness Probe**: `/healthz` on port 9090
+1. Create service account with billing viewer permissions
+2. Download service account key
+3. Create secret and update configuration similar to AWS
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Pod Not Starting**:
-   ```bash
-   kubectl describe pod -n kubecost -l app.kubernetes.io/name=kubecost
-   kubectl logs -n kubecost -l app.kubernetes.io/name=kubecost
-   ```
+#### Pod Stuck in Pending
+```bash
+# Check events
+kubectl describe pod -n kubecost -l app.kubernetes.io/name=cost-analyzer
 
-2. **ArgoCD Sync Failures**:
-   ```bash
-   argocd app get kubecost
-   argocd app sync kubecost
-   ```
+# Common causes:
+# - Insufficient resources
+# - Missing storage class  
+# - Node selector/taints issues
+```
 
-3. **Permission Issues**:
-   ```bash
-   kubectl auth can-i --list --as=system:serviceaccount:kubecost:kubecost-cost-analyzer
-   ```
+#### Unable to Access UI
+```bash
+# Check ingress
+kubectl get ingress -n kubecost
 
-4. **Ingress Not Working**:
-   ```bash
-   kubectl describe ingress -n kubecost
-   kubectl get events -n kubecost
-   ```
+# Check service
+kubectl get svc -n kubecost
+
+# Test internal connectivity
+kubectl run test-pod --image=nginx --rm -it -- curl kubecost-cost-analyzer.kubecost:9090
+```
+
+#### Missing Cost Data
+```bash
+# Check Prometheus connectivity  
+kubectl logs -n kubecost -l app.kubernetes.io/name=cost-analyzer | grep -i prometheus
+
+# Verify metrics-server is running
+kubectl get deployment metrics-server -n kube-system
+
+# Check node-exporter and cadvisor
+kubectl get pods -n kube-system | grep -E "(node-exporter|cadvisor)"
+```
+
+#### Database Issues
+```bash
+# Check PostgreSQL status
+kubectl get pods -n kubecost -l app.kubernetes.io/name=postgresql
+
+# Check logs
+kubectl logs -n kubecost -l app.kubernetes.io/name=postgresql
+
+# Test database connectivity
+kubectl run psql-test --image=postgres:13 --rm -it -- psql postgresql://postgres:password@kubecost-postgresql:5432/kubecost
+```
+
+### Debug Commands
+
+```bash
+# Check all resources
+kubectl get all -n kubecost
+
+# Describe main deployment
+kubectl describe deployment kubecost-cost-analyzer -n kubecost
+
+# Check persistent volume claims
+kubectl get pvc -n kubecost
+
+# View configuration
+kubectl get configmap -n kubecost -o yaml
+
+# Check secrets
+kubectl get secrets -n kubecost
+```
 
 ### Log Analysis
-```bash
-# Get cost-analyzer logs
-kubectl logs -n kubecost deployment/kubecost-cost-analyzer
 
-# Get Prometheus logs (if using built-in)
-kubectl logs -n kubecost deployment/kubecost-prometheus-server
+```bash
+# Cost-analyzer logs
+kubectl logs -n kubecost -l app.kubernetes.io/name=cost-analyzer -c cost-analyzer-frontend
+
+# Backend logs  
+kubectl logs -n kubecost -l app.kubernetes.io/name=cost-analyzer -c cost-model
+
+# PostgreSQL logs
+kubectl logs -n kubecost -l app.kubernetes.io/name=postgresql
+
+# Grafana logs (if enabled)
+kubectl logs -n kubecost -l app.kubernetes.io/name=grafana
+```
+
+## Maintenance
+
+### Backup and Recovery
+
+#### Backup Cost Data
+```bash
+# Create backup of PostgreSQL data
+kubectl exec -n kubecost kubecost-postgresql-0 -- pg_dump kubecost > kubecost-backup-$(date +%Y%m%d).sql
+
+# Backup persistent volume (if using cloud provider snapshots)
+# AWS EBS snapshot
+aws ec2 create-snapshot --volume-id vol-xxx --description "Kubecost backup $(date)"
+
+# GCP disk snapshot  
+gcloud compute disks snapshot kubecost-pv --snapshot-names kubecost-backup-$(date +%Y%m%d)
+```
+
+#### Restore from Backup
+```bash
+# Restore PostgreSQL data
+kubectl exec -i -n kubecost kubecost-postgresql-0 -- psql kubecost < kubecost-backup-20241001.sql
+```
+
+### Updates and Upgrades
+
+#### Update Kubecost Version
+1. Update image tags in overlays
+2. Test in staging environment first  
+3. Update production after validation
+4. Monitor for any data migration issues
+
+#### Update Helm Chart Version
+1. Update version in `base/kustomization.yaml`
+2. Review chart changelog for breaking changes
+3. Update values if needed for new features
+4. Deploy via ArgoCD
+
+### Performance Optimization
+
+#### For Large Clusters (>100 nodes)
+```yaml
+# Increase resources
+kubecostModel:
+  resources:
+    limits:
+      cpu: "4000m"
+      memory: "8Gi"
+
+# Enable ETL for better performance
+etl: true
+
+# Use external PostgreSQL for production
+postgresql:
+  enabled: false
+  
+# Configure external PostgreSQL
+costAnalyzerConfig:
+  dbConfig:
+    enabled: true
+    host: "external-postgres.example.com"
+    port: 5432
+    database: "kubecost"
+    username: "kubecost"
+    password: "secure-password"
 ```
 
 ## Security Considerations
 
-1. **RBAC**: Minimal required permissions for cluster resource read access
-2. **Network Policies**: Restricts network traffic to necessary communications
-3. **Service Account**: Dedicated service account with limited privileges
-4. **TLS**: HTTPS access via ingress with cert-manager integration
+### Network Security
+- Use NetworkPolicies to restrict traffic
+- Enable TLS for all external communications  
+- Configure ingress authentication
+- Restrict access to cost data by RBAC
 
-## Backup and Disaster Recovery
+### Data Privacy
+- Kubecost processes cluster metadata, not application data
+- Cost data may contain business-sensitive information
+- Configure appropriate access controls
+- Consider data retention policies
 
-### Persistent Data
-Kubecost stores data in persistent volumes. Ensure your cluster has:
-- Regular PV backups configured
-- Storage class with appropriate redundancy
-- Disaster recovery procedures for persistent data
+### Secrets Management
+- Use Kubernetes secrets for sensitive configuration
+- Consider external secret management (Vault, etc.)
+- Rotate credentials regularly
+- Audit secret access
 
-### Configuration Backup
-All configuration is stored in Git, providing:
-- Version control for all changes
-- Easy rollback capabilities
-- Disaster recovery through GitOps
+## Support and Contributing
 
-## Troubleshooting
+### Getting Help
+- Check Kubecost documentation: https://docs.kubecost.com
+- Review GitHub issues: https://github.com/kubecost/cost-analyzer-helm-chart
+- Internal team Slack: #platform-tools
 
-### Common Issues
+### Contributing
+1. Create feature branch from main
+2. Test changes in staging environment
+3. Update documentation  
+4. Submit pull request with proper testing evidence
+5. Get approval from platform team
 
-#### 1. "app path does not exist" Error
-If you get the error: `application spec for platform-tools is invalid: InvalidSpecError: Unable to generate manifests in kubecost: rpc error: code = Unknown desc = kubecost: app path does not exist`
-
-**Solution**: Use the direct Helm chart approach instead:
-```bash
-kubectl apply -f platform-tools/kubecost/base/application-helm-direct.yaml
-```
-
-This bypasses path resolution issues by using the Helm chart directly from the repository.
-
-#### 2. Namespace Already Exists
-If the kubecost namespace already exists, remove the `CreateNamespace=true` syncOption from the application manifest.
-
-#### 3. Storage Class Issues
-Update the `persistentVolume.storageClass` parameter in the Helm values to match your cluster's available storage classes:
-```bash
-kubectl get storageclass
-```
-
-#### 4. Ingress Configuration
-Update the ingress host and TLS settings in the application values to match your domain and certificate setup.
-
-### Validation Steps
-
-After deployment, verify the installation:
-
-```bash
-# Check ArgoCD application status
-kubectl get application kubecost -n argocd
-
-# Check pod status in kubecost namespace
-kubectl get pods -n kubecost
-
-# Check service accessibility
-kubectl port-forward -n kubecost svc/kubecost-cost-analyzer 9090:9090
-
-# Access Kubecost UI at http://localhost:9090
-```
-
-## Support and Documentation
-
-- **Official Kubecost Documentation**: https://docs.kubecost.com/
-- **Helm Chart Repository**: https://kubecost.github.io/cost-analyzer/
-- **ArgoCD Documentation**: https://argo-cd.readthedocs.io/
-- **Kustomize Documentation**: https://kustomize.io/
-
-## License
-
-This deployment configuration is provided under the same license as the Kubecost project. See the official Kubecost repository for license details.
+### Version History
+- v1.0.0 - Initial Kubecost deployment with ArgoCD
+- v1.1.0 - Added multi-environment support
+- v1.2.0 - Enhanced security and monitoring
 
 ---
 
-**Note**: Remember to update domain names, storage classes, and other environment-specific values before deployment.
+## License
+This configuration is proprietary to WEBFORX. See LICENSE file for details.
+
+## Contact
+Platform Team - platform@webforx.com
