@@ -6,7 +6,7 @@ metadata:
   name: kubecost-cost-analyzer
   namespace: kubecost
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "3"
   labels:
     app.kubernetes.io/name: kubecost
     app.kubernetes.io/component: monitoring
@@ -18,24 +18,24 @@ spec:
       app.kubernetes.io/name: cost-analyzer
       app.kubernetes.io/instance: kubecost
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 30s
-      scrapeTimeout: 10s
     - port: http
       path: /metrics
       interval: 60s
       scrapeTimeout: 30s
+    - port: metrics  
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
 
 ---
-# PrometheusRule for Kubecost alerts
+# PrometheusRule for Kubecost production alerts
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: kubecost-alerts
+  name: kubecost-production-alerts
   namespace: kubecost
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "3"
   labels:
     app.kubernetes.io/name: kubecost
     app.kubernetes.io/component: monitoring
@@ -43,140 +43,219 @@ metadata:
     environment: production
 spec:
   groups:
-    - name: kubecost.rules
-      interval: 30s
+    - name: kubecost.production.rules
+      interval: 60s
       rules:
         # High CPU usage alert
         - alert: KubecostHighCPUUsage
-          expr: rate(container_cpu_usage_seconds_total{namespace="kubecost", pod=~"kubecost-cost-analyzer-.*"}[5m]) > 0.8
-          for: 5m
+          expr: rate(container_cpu_usage_seconds_total{namespace="kubecost", pod=~"kubecost-cost-analyzer-.*"}[5m]) > 1.5
+          for: 10m
           labels:
             severity: warning
             component: kubecost
+            environment: production
           annotations:
-            summary: "Kubecost high CPU usage"
-            description: "Kubecost cost-analyzer pod {{ $labels.pod }} is using more than 80% CPU for 5 minutes"
+            summary: "Kubecost high CPU usage in production"
+            description: "Kubecost cost-analyzer pod {{ $labels.pod }} is using more than 150% CPU for 10 minutes"
+            runbook_url: "https://docs.kubecost.com/troubleshooting"
         
         # High memory usage alert
         - alert: KubecostHighMemoryUsage
           expr: container_memory_usage_bytes{namespace="kubecost", pod=~"kubecost-cost-analyzer-.*"} / container_spec_memory_limit_bytes > 0.9
-          for: 5m
+          for: 10m
           labels:
             severity: warning
             component: kubecost
+            environment: production
           annotations:
-            summary: "Kubecost high memory usage"
-            description: "Kubecost cost-analyzer pod {{ $labels.pod }} is using more than 90% memory for 5 minutes"
+            summary: "Kubecost high memory usage in production"
+            description: "Kubecost cost-analyzer pod {{ $labels.pod }} is using more than 90% memory for 10 minutes"
+            runbook_url: "https://docs.kubecost.com/troubleshooting"
         
         # Pod restart alert
         - alert: KubecostPodRestarting
-          expr: rate(kube_pod_container_status_restarts_total{namespace="kubecost"}[15m]) > 0
+          expr: rate(kube_pod_container_status_restarts_total{namespace="kubecost"}[30m]) > 0
           for: 5m
           labels:
             severity: warning
             component: kubecost
+            environment: production
           annotations:
-            summary: "Kubecost pod restarting"
+            summary: "Kubecost pod restarting frequently in production"
             description: "Kubecost pod {{ $labels.pod }} has been restarting frequently"
+            runbook_url: "https://docs.kubecost.com/troubleshooting"
         
         # Service unavailable alert
         - alert: KubecostServiceDown
-          expr: up{job="kubecost-cost-analyzer"} == 0
-          for: 2m
+          expr: up{job="kubecost-cost-analyzer", instance=~".*kubecost.*"} == 0
+          for: 5m
           labels:
             severity: critical
             component: kubecost
+            environment: production
           annotations:
-            summary: "Kubecost service is down"
-            description: "Kubecost cost-analyzer service has been down for more than 2 minutes"
+            summary: "Kubecost service is down in production"
+            description: "Kubecost cost-analyzer service has been down for more than 5 minutes"
+            runbook_url: "https://docs.kubecost.com/troubleshooting"
         
         # Disk usage alert
         - alert: KubecostHighDiskUsage
-          expr: kubecost_pv_usage_percent > 85
-          for: 5m
+          expr: (kubecost_pv_usage_bytes / kubecost_pv_capacity_bytes) > 0.85
+          for: 15m
           labels:
             severity: warning
             component: kubecost
+            environment: production
           annotations:
-            summary: "Kubecost high disk usage"
+            summary: "Kubecost high disk usage in production"
             description: "Kubecost persistent volume usage is above 85%"
+            runbook_url: "https://docs.kubecost.com/troubleshooting"
         
-        # Data collection alert
+        # Data collection failure alert
         - alert: KubecostDataCollectionFailed
-          expr: increase(kubecost_load_balancer_errors_total[10m]) > 5
-          for: 5m
+          expr: increase(kubecost_cost_model_errors_total[15m]) > 10
+          for: 10m
           labels:
             severity: warning
             component: kubecost
+            environment: production
           annotations:
-            summary: "Kubecost data collection issues"
+            summary: "Kubecost data collection issues in production"
             description: "Kubecost is experiencing data collection errors"
+            runbook_url: "https://docs.kubecost.com/troubleshooting"
+        
+        # Cost spike alert
+        - alert: KubecostCostSpike
+          expr: increase(kubecost_cluster_cost_hourly[1h]) > increase(kubecost_cluster_cost_hourly[1h] offset 24h) * 1.5
+          for: 30m
+          labels:
+            severity: warning
+            component: kubecost
+            environment: production
+          annotations:
+            summary: "Unusual cost spike detected in production"
+            description: "Cluster costs have increased by more than 50% compared to the same time yesterday"
+            runbook_url: "https://docs.kubecost.com/cost-monitoring"
 
 ---
-# Grafana Dashboard ConfigMap for Kubecost
+# Grafana Dashboard ConfigMap for production monitoring
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kubecost-dashboard
+  name: kubecost-production-dashboard
   namespace: kubecost
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
-    grafana_folder: "Kubecost"
+    argocd.argoproj.io/sync-wave: "3"
+    grafana_folder: "Kubecost Production"
   labels:
     app.kubernetes.io/name: kubecost
     app.kubernetes.io/component: monitoring
     grafana_dashboard: "1"
+    environment: production
 data:
-  kubecost-overview.json: |
+  kubecost-production-overview.json: |
     {
       "dashboard": {
         "id": null,
-        "title": "Kubecost Overview",
-        "tags": ["kubecost", "cost", "monitoring"],
+        "title": "Kubecost Production Overview",
+        "tags": ["kubecost", "cost", "production", "monitoring"],
         "timezone": "browser",
+        "refresh": "30s",
         "panels": [
           {
             "id": 1,
-            "title": "Total Cluster Cost (Monthly)",
-            "type": "singlestat",
+            "title": "Total Monthly Cluster Cost",
+            "type": "stat",
+            "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
             "targets": [
               {
-                "expr": "kubecost_cluster_costs_total",
-                "legendFormat": "Total Cost"
+                "expr": "kubecost_cluster_cost_monthly",
+                "legendFormat": "Monthly Cost ($)"
               }
-            ]
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "currencyUSD",
+                "color": {"mode": "palette-classic"}
+              }
+            }
           },
           {
             "id": 2,
-            "title": "Cost by Namespace",
-            "type": "piechart",
+            "title": "Daily Cost Trend",
+            "type": "timeseries",
+            "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0},
             "targets": [
               {
-                "expr": "kubecost_namespace_costs",
-                "legendFormat": "{{ namespace }}"
+                "expr": "kubecost_cluster_cost_daily",
+                "legendFormat": "Daily Cost"
               }
             ]
           },
           {
             "id": 3,
-            "title": "Resource Efficiency",
-            "type": "graph",
+            "title": "Cost by Namespace (Top 10)",
+            "type": "bargauge",
+            "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
             "targets": [
               {
-                "expr": "kubecost_cluster_cpu_efficiency",
-                "legendFormat": "CPU Efficiency"
+                "expr": "topk(10, kubecost_namespace_cost_daily)",
+                "legendFormat": "{{ namespace }}"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Resource Efficiency",
+            "type": "timeseries",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "targets": [
+              {
+                "expr": "kubecost_cluster_cpu_efficiency_percentage",
+                "legendFormat": "CPU Efficiency %"
               },
               {
-                "expr": "kubecost_cluster_memory_efficiency", 
-                "legendFormat": "Memory Efficiency"
+                "expr": "kubecost_cluster_memory_efficiency_percentage",
+                "legendFormat": "Memory Efficiency %"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Kubecost Service Status",
+            "type": "stat",
+            "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+            "targets": [
+              {
+                "expr": "up{job=\"kubecost-cost-analyzer\"}",
+                "legendFormat": "Service Status"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {"options": {"0": {"text": "DOWN", "color": "red"}}, "type": "value"},
+                  {"options": {"1": {"text": "UP", "color": "green"}}, "type": "value"}
+                ]
+              }
+            }
+          },
+          {
+            "id": 6,
+            "title": "Active Alerts",
+            "type": "stat",
+            "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+            "targets": [
+              {
+                "expr": "ALERTS{alertname=~\"Kubecost.*\", alertstate=\"firing\"}",
+                "legendFormat": "Active Alerts"
               }
             ]
           }
         ],
         "time": {
-          "from": "now-30d",
+          "from": "now-24h",
           "to": "now"
-        },
-        "refresh": "5m"
+        }
       }
     }

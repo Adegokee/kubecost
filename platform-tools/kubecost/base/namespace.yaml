@@ -1,3 +1,5 @@
+---
+# Namespace for Kubecost
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -7,73 +9,8 @@ metadata:
     app.kubernetes.io/name: kubecost
     app.kubernetes.io/part-of: platform-tools
     app.kubernetes.io/managed-by: argocd
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
   annotations:
     argocd.argoproj.io/sync-wave: "0"
----
-# Network policy for enhanced security
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: kubecost-network-policy
-  namespace: kubecost
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: kubecost
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    # Allow ingress from nginx ingress controller
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: nginx-ingress
-      ports:
-        - protocol: TCP
-          port: 9090
-    # Allow internal communication within kubecost namespace
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: kubecost
-      ports:
-        - protocol: TCP
-          port: 9090
-        - protocol: TCP
-          port: 3000
-        - protocol: TCP
-          port: 5432
-  egress:
-    # Allow DNS resolution
-    - to: []
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    # Allow HTTPS for external API calls
-    - to: []
-      ports:
-        - protocol: TCP
-          port: 443
-    # Allow access to Kubernetes API server
-    - to: []
-      ports:
-        - protocol: TCP
-          port: 6443
-    # Allow access to Prometheus (if external)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: monitoring
-      ports:
-        - protocol: TCP
-          port: 9090
-    # Allow internal communication within kubecost namespace
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: kubecost

@@ -1,7 +1,7 @@
-# Staging-specific values for Kubecost
-# Reduced resources for staging environment
+# Staging-specific Kubecost configuration
+# Reduced resources and features for staging environment
 
-# Staging resource allocation
+# Staging resource allocation - Minimal resources for cost savings
 kubecostModel:
   resources:
     requests:
@@ -14,19 +14,34 @@ kubecostModel:
 # Disable ETL for staging to reduce resource usage
 kubecostModel:
   etl: false
-  
-# Smaller persistence settings for staging
+  warmCache: false
+  warmSavingsCache: false
+
+# Staging frontend resources - Minimal allocation
+kubecostFrontend:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+# Staging persistence - Smaller storage for staging
 persistentVolume:
   enabled: true
-  size: "10Gi"  # Smaller storage for staging
+  size: "10Gi"
   storageClass: "standard"  # Use standard storage class
+  accessModes:
+    - ReadWriteOnce
 
-# Staging PostgreSQL configuration with reduced resources
+# Staging PostgreSQL configuration - Reduced resources
 postgresql:
   enabled: true
   auth:
-    postgresPassword: "staging-kubecost-postgres-password"
+    postgresPassword: "staging-kubecost-password"
     database: "kubecost_staging"
+    username: "postgres"
   primary:
     resources:
       requests:
@@ -40,54 +55,80 @@ postgresql:
       size: "5Gi"
       storageClass: "standard"
 
-# Staging Grafana settings
+# Staging Grafana configuration - Minimal resources
 grafana:
   enabled: true
   persistence:
     enabled: true
-    size: 2Gi
+    size: 3Gi
     storageClass: "standard"
   resources:
     requests:
       cpu: "50m"
       memory: "64Mi"
     limits:
-      cpu: "200m"
-      memory: "256Mi"
+      cpu: "100m"
+      memory: "128Mi"
+  adminPassword: "staging-grafana-password"
 
-# Staging ingress configuration
+# Staging ingress - No SSL requirement, relaxed security
 ingress:
   enabled: true
   className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"  # No SSL for staging
+    # Relaxed rate limiting for testing
+    nginx.ingress.kubernetes.io/rate-limit-connections: "50"
+    nginx.ingress.kubernetes.io/rate-limit-rps: "30"
+    # Optional: Use staging cert-manager issuer
     cert-manager.io/cluster-issuer: "letsencrypt-staging"
   hosts:
-    - host: kubecost-staging.yourdomain.com
+    - host: kubecost-staging.yourdomain.com  # CHANGE TO YOUR STAGING DOMAIN
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: kubecost-staging-tls
       hosts:
-        - kubecost-staging.yourdomain.com
+        - kubecost-staging.yourdomain.com  # CHANGE TO YOUR STAGING DOMAIN
 
 # Disable network costs for staging
 networkCosts:
   enabled: false
 
-# Staging monitoring (reduced frequency)
+# Staging monitoring - Basic monitoring only
 serviceMonitor:
   enabled: true
   additionalLabels:
     prometheus: kube-prometheus
     environment: staging
+    tier: platform
 
 # Disable budget alerts for staging
 budgetAlertsEnabled: false
 
-# No specific node affinity for staging
+# Basic security contexts for staging
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+# No specific affinity for staging - can run anywhere
 affinity: {}
 
 # No tolerations for staging
 tolerations: []
+
+# No priority class for staging
+priorityClassName: ""
+
+# Basic cost allocation for staging
+costAnalyzerConfig:
+  currencyCode: "USD"
+  customPricing:
+    enabled: false
+  # No cloud provider integration for staging
+
+# Minimal aggregator for staging
+kubecostAggregator:
+  enabled: false  # Disable for staging to save resources

@@ -1,33 +1,37 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+metadata:
+  name: kubecost-production
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
 # Reference to base configuration
 bases:
   - ../../base
 
-# Namespace override for production
+# Production-specific namespace
 namespace: kubecost
 
 # Production-specific labels
 commonLabels:
   environment: production
   tier: platform
+  cost-center: platform-ops
 
 # Production-specific annotations
 commonAnnotations:
-  argocd.argoproj.io/sync-options: "Prune=true"
-  
-# Name suffix for production
-nameSuffix: ""
+  argocd.argoproj.io/sync-options: "Prune=true,CreateNamespace=true"
+  environment: production
 
-# Resources specific to production
+# Production-specific resources
 resources:
   - production-values.yaml
   - monitoring.yaml
 
 # Patches for production environment
 patches:
-  # Increase resource limits for production
+  # Increase resource limits for production workloads
   - target:
       group: apps
       version: v1
@@ -52,16 +56,16 @@ patches:
       group: networking.k8s.io
       version: v1
       kind: Ingress
-      name: kubecost-ingress
+      name: kubecost
     patch: |-
       - op: replace
         path: /spec/rules/0/host
-        value: "kubecost.yourdomain.com"
+        value: "kubecost-prod.yourdomain.com"
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: "kubecost.yourdomain.com"
+        value: "kubecost-prod.yourdomain.com"
 
-  # Enable high availability
+  # Enable high availability with multiple replicas
   - target:
       group: apps
       version: v1
@@ -72,14 +76,14 @@ patches:
         path: /spec/replicas
         value: 2
 
-# Image transformations for production
+# Production image versions (pinned for stability)
 images:
   - name: gcr.io/kubecost1/cost-model
     newTag: prod-1.106.0
   - name: gcr.io/kubecost1/frontend
     newTag: prod-1.106.0
 
-# Replica transformations
+# Production replica counts
 replicas:
   - name: kubecost-cost-analyzer
     count: 2

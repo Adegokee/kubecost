@@ -1,3 +1,5 @@
+---
+# ArgoCD Application for Kubecost deployment
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -6,18 +8,23 @@ metadata:
   labels:
     app.kubernetes.io/name: kubecost
     app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "2"
     argocd.argoproj.io/compare-options: IgnoreExtraneous
     notifications.argoproj.io/subscribe.on-sync-succeeded.slack: argocd-notifications
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: argocd-notifications
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: argocd-notifications
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+
 spec:
-  # Project configuration
+  # Project assignment - MUST belong to platform-tools project
   project: platform-tools
   
   # Source repository configuration
   source:
+    # CHANGE THIS TO YOUR ARGOCD-GITOPS REPOSITORY URL
     repoURL: https://git.edusuc.net/WEBFORX/ArgoCD-gitops
     targetRevision: main
     path: platform-tools/kubecost/overlays/production
@@ -26,26 +33,31 @@ spec:
     kustomize:
       commonLabels:
         argocd.argoproj.io/instance: kubecost
+        environment: production
       namePrefix: ""
       nameSuffix: ""
+      images: []
   
   # Destination cluster and namespace
   destination:
     server: https://kubernetes.default.svc
     namespace: kubecost
   
-  # Sync policy configuration
+  # Sync policy configuration for GitOps
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
       allowEmpty: false
+    
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
       - PruneLast=true
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
+      - ServerSideApply=false
+    
     retry:
       limit: 5
       backoff:
@@ -53,10 +65,10 @@ spec:
         factor: 2
         maxDuration: 3m
   
-  # Health and status configuration
+  # Revision history limit
   revisionHistoryLimit: 10
   
-  # Ignore differences for dynamic fields
+  # Ignore differences for dynamic fields that ArgoCD shouldn't manage
   ignoreDifferences:
     - group: apps
       kind: Deployment
@@ -66,6 +78,7 @@ spec:
       kind: Service
       jsonPointers:
         - /spec/clusterIP
+        - /spec/clusterIPs
     - group: ""
       kind: ConfigMap
       jsonPointers:
@@ -75,3 +88,11 @@ spec:
       kind: Secret
       jsonPointers:
         - /data
+    - group: ""
+      kind: PersistentVolumeClaim
+      jsonPointers:
+        - /spec/volumeName
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates/0/spec/volumeName

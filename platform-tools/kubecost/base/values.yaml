@@ -1,33 +1,41 @@
 # Kubecost Helm Chart Values Configuration
-# Official chart: https://github.com/kubecost/cost-analyzer-helm-chart
+# Repository: https://github.com/kubecost/cost-analyzer-helm-chart
+# Chart Version: 2.0.4
 
 # Global configuration
 global:
   # Grafana configuration
   grafana:
     enabled: true
-    domainName: kubecost.local
+    domainName: kubecost-grafana
     scheme: "http"
     proxy: true
   
-  # Prometheus configuration - use existing cluster prometheus if available
+  # Prometheus configuration
   prometheus:
     enabled: true
     fqdn: http://prometheus-server.monitoring.svc.cluster.local:80
     queryServiceBasePath: ""
-  
-  # Thanos configuration for long-term storage (optional)
+    
+  # Thanos configuration (for long-term storage)
   thanos:
     enabled: false
 
-# Kubecost configuration
+# Kubecost frontend configuration
 kubecostFrontend:
   image:
     repository: gcr.io/kubecost1/frontend
     tag: prod-1.106.0
     pullPolicy: Always
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
 
-# Cost-analyzer configuration
+# Cost model configuration
 kubecostModel:
   image:
     repository: gcr.io/kubecost1/cost-model
@@ -40,23 +48,87 @@ kubecostModel:
       cpu: "200m"
       memory: "512Mi"
     limits:
-      cpu: "800m"
+      cpu: "1000m"
       memory: "2Gi"
-
-  # Warm cache and savings
-  warmCache: false
+  
+  # Performance settings
+  warmCache: true
   warmSavingsCache: true
   etl: true
+  etlBucketConfigSecret: ""
   
-  # Log level
+  # Log configuration
   logLevel: info
+  logFormat: JSON
 
-# PostgreSQL configuration for ETL data
+# Service configuration
+service:
+  type: ClusterIP
+  port: 9090
+  targetPort: 9090
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9003"
+    prometheus.io/path: "/metrics"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    
+    # Authentication (configure based on your auth system)
+    nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.auth.svc.cluster.local/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.auth.svc.cluster.local/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: "x-auth-request-user,x-auth-request-email,x-auth-request-preferred-username"
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit-connections: "10"
+    nginx.ingress.kubernetes.io/rate-limit-rps: "5"
+    
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+    
+    # TLS certificate
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    
+  hosts:
+    - host: kubecost.yourdomain.com  # CHANGE THIS TO YOUR DOMAIN
+      paths:
+        - path: /
+          pathType: Prefix
+  
+  tls:
+    - secretName: kubecost-tls-secret
+      hosts:
+        - kubecost.yourdomain.com  # CHANGE THIS TO YOUR DOMAIN
+
+# Persistent Volume configuration
+persistentVolume:
+  enabled: true
+  size: "20Gi"
+  storageClass: ""  # Use default storage class
+  accessModes:
+    - ReadWriteOnce
+  
+# PostgreSQL configuration (for ETL data)
 postgresql:
   enabled: true
   auth:
-    postgresPassword: "kubecost-postgres"
+    postgresPassword: "kubecost-postgres-password"  # CHANGE IN PRODUCTION
     database: "kubecost"
+    username: "postgres"
   primary:
     resources:
       requests:
@@ -68,52 +140,7 @@ postgresql:
     persistence:
       enabled: true
       size: "10Gi"
-      storageClass: ""  # Use default storage class
-
-# Network costs (requires specific cloud provider setup)
-networkCosts:
-  enabled: false
-  
-# Service configuration
-service:
-  type: ClusterIP
-  port: 9090
-  targetPort: 9090
-  annotations: {}
-
-# Ingress configuration
-ingress:
-  enabled: true
-  className: "nginx"  # Use nginx ingress controller
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.auth.svc.cluster.local/oauth2/auth"
-    nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.auth.svc.cluster.local/oauth2/start?rd=$escaped_request_uri"
-    nginx.ingress.kubernetes.io/auth-response-headers: "x-auth-request-user,x-auth-request-email"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-  hosts:
-    - host: kubecost.yourdomain.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: kubecost-tls
-      hosts:
-        - kubecost.yourdomain.com
-
-# Persistence configuration
-persistentVolume:
-  enabled: true
-  size: "15Gi"
-  storageClass: ""  # Use default storage class
-  accessModes:
-    - ReadWriteOnce
-
-# Service monitor for Prometheus scraping
-serviceMonitor:
-  enabled: true
-  additionalLabels:
-    prometheus: kube-prometheus
+      storageClass: ""
 
 # Grafana configuration
 grafana:
@@ -125,9 +152,12 @@ grafana:
     datasources:
       enabled: true
       defaultDatasourceEnabled: true
+  
   persistence:
     enabled: true
     size: 5Gi
+    storageClass: ""
+  
   resources:
     requests:
       cpu: "100m"
@@ -135,42 +165,55 @@ grafana:
     limits:
       cpu: "200m"
       memory: "256Mi"
+  
+  adminPassword: "kubecost-grafana-admin"  # CHANGE IN PRODUCTION
 
-# Priority class for scheduling
-priorityClassName: "system-cluster-critical"
-
-# Node selector (optional)
-nodeSelector: {}
-
-# Tolerations (optional)
-tolerations: []
-
-# Affinity (optional)
-affinity: {}
-
-# Pod security context
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 1001
-  fsGroup: 1001
-  seccompProfile:
-    type: RuntimeDefault
-
-# Security context for containers
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false  # Kubecost needs to write some files
-  runAsNonRoot: true
-  runAsUser: 1001
-  capabilities:
-    drop:
-      - ALL
-
-# Resource recommendations and sizing
-recommendationEngine:
+# ServiceMonitor for Prometheus
+serviceMonitor:
   enabled: true
+  additionalLabels:
+    prometheus: kube-prometheus
+    release: prometheus-operator
 
-# Cluster controller for multi-cluster setups
+# Network costs configuration
+networkCosts:
+  enabled: false  # Enable if you have network cost data
+  config:
+    services:
+      - service: "amazon-web-services"
+        enabled: false
+      - service: "azure"
+        enabled: false
+      - service: "google-cloud-platform"
+        enabled: false
+
+# Cost allocation settings
+costAnalyzerConfig:
+  # Currency configuration
+  currencyCode: "USD"
+  
+  # Cloud provider configurations (configure as needed)
+  customPricing:
+    enabled: false
+  
+  # AWS configuration
+  awsServiceKeyName: ""
+  awsServiceKeySecret: ""
+  
+  # Azure configuration
+  azureSubscriptionID: ""
+  azureServiceKeyName: ""
+  azureServiceKeySecret: ""
+  
+  # GCP configuration
+  gcpServiceKeyName: ""
+  gcpServiceKeySecret: ""
+  
+  # Discount configuration
+  discount: 0.0
+  negotiatedDiscount: 0.0
+
+# Cluster controller (for multi-cluster setups)
 clusterController:
   enabled: false
 
@@ -178,46 +221,61 @@ clusterController:
 reporting:
   productAnalytics: false
 
-# Cost allocation configuration
-costAnalyzerConfig:
-  # Currency settings
-  currencyCode: "USD"
-  
-  # Custom pricing (optional)
-  customPricing:
-    enabled: false
-  
-  # AWS configuration (if running on AWS)
-  awsServiceKeyName: ""
-  awsServiceKeySecret: ""
-  
-  # Azure configuration (if running on Azure)  
-  azureSubscriptionID: ""
-  azureServiceKeyName: ""
-  azureServiceKeySecret: ""
-  
-  # GCP configuration (if running on GCP)
-  gcpServiceKeyName: ""
-  gcpServiceKeySecret: ""
+# Budget alerts
+budgetAlertsEnabled: true
 
-# Image pull secrets (if using private registries)
-imagePullSecrets: []
+# Kubecost aggregator
+kubecostAggregator:
+  enabled: true
+  aggregatorDbStorage: 10Gi
 
-# Annotations for pods
+# Priority class
+priorityClassName: ""
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Pod annotations
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9003"
 
-# Labels for pods  
+# Pod labels
 podLabels: {}
+
+# Security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # Kubecost needs write access for some operations
+  runAsNonRoot: true
+  runAsUser: 1001
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
 
 # Liveness and readiness probes
 livenessProbe:
   enabled: true
-  initialDelaySeconds: 60
+  initialDelaySeconds: 120
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
+  successThreshold: 1
 
 readinessProbe:
   enabled: true
@@ -225,10 +283,15 @@ readinessProbe:
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
+  successThreshold: 1
 
-# Enable budget alerts
-budgetAlertsEnabled: true
+# Image pull secrets
+imagePullSecrets: []
 
-# Enable cost allocation by namespace, deployment, service, etc.
-kubecostAggregator:
+# Recommendation engine
+recommendationEngine:
+  enabled: true
+
+# Upgrade job
+upgradeJob:
   enabled: true

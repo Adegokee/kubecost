@@ -1,7 +1,7 @@
-# Production-specific values for Kubecost
-# These values override the base values.yaml
+# Production-specific Kubecost configuration
+# These values override the base values.yaml for production environment
 
-# Production resource allocation
+# Production resource allocation - Higher limits for production workloads
 kubecostModel:
   resources:
     requests:
@@ -11,23 +11,38 @@ kubecostModel:
       cpu: "2000m"
       memory: "4Gi"
 
-# Enable ETL for production
+# Enable ETL for production data processing
 kubecostModel:
   etl: true
-  etlBucketConfigSecret: kubecost-object-store
-  
-# Production persistence settings
+  etlBucketConfigSecret: "kubecost-object-store"
+  warmCache: true
+  warmSavingsCache: true
+
+# Production frontend resources
+kubecostFrontend:
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Production persistence - Larger storage for production data
 persistentVolume:
   enabled: true
-  size: "50Gi"  # Larger storage for production
-  storageClass: "fast-ssd"  # Use high-performance storage class
+  size: "50Gi"
+  storageClass: "fast-ssd"  # Use high-performance storage
+  accessModes:
+    - ReadWriteOnce
 
 # Production PostgreSQL configuration
 postgresql:
   enabled: true
   auth:
-    postgresPassword: "production-kubecost-postgres-password"  # Use secret in real deployment
+    postgresPassword: "CHANGE-THIS-PRODUCTION-PASSWORD"  # Use proper secret management
     database: "kubecost_prod"
+    username: "postgres"
   primary:
     resources:
       requests:
@@ -38,15 +53,15 @@ postgresql:
         memory: "2Gi"
     persistence:
       enabled: true
-      size: "20Gi"
+      size: "30Gi"
       storageClass: "fast-ssd"
 
-# Production Grafana settings
+# Production Grafana configuration
 grafana:
   enabled: true
   persistence:
     enabled: true
-    size: 10Gi
+    size: 15Gi
     storageClass: "fast-ssd"
   resources:
     requests:
@@ -54,12 +69,10 @@ grafana:
       memory: "256Mi"
     limits:
       cpu: "500m"
-      memory: "512Mi"
-  
-  # Grafana admin credentials (use secrets in real deployment)
-  adminPassword: "change-me-in-production"
+      memory: "1Gi"
+  adminPassword: "CHANGE-THIS-PRODUCTION-PASSWORD"  # Use proper secret management
 
-# Production ingress configuration
+# Production ingress with SSL and authentication
 ingress:
   enabled: true
   className: "nginx"
@@ -67,42 +80,44 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    # Production rate limiting
-    nginx.ingress.kubernetes.io/rate-limit-connections: "20"
-    nginx.ingress.kubernetes.io/rate-limit-rps: "10"
+    # Production rate limiting - Higher limits
+    nginx.ingress.kubernetes.io/rate-limit-connections: "25"
+    nginx.ingress.kubernetes.io/rate-limit-rps: "15"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
   hosts:
-    - host: kubecost.yourdomain.com
+    - host: kubecost-prod.yourdomain.com  # CHANGE TO YOUR PRODUCTION DOMAIN
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: kubecost-prod-tls
       hosts:
-        - kubecost.yourdomain.com
+        - kubecost-prod.yourdomain.com  # CHANGE TO YOUR PRODUCTION DOMAIN
 
-# Enable network costs for production (requires cloud provider setup)
+# Enable network costs for production (configure for your cloud provider)
 networkCosts:
   enabled: true
   config:
     services:
       - service: "amazon-web-services"
-        enabled: true
+        enabled: true  # Set to true if using AWS
       - service: "azure"
-        enabled: false
-      - service: "gcp"
-        enabled: false
+        enabled: false  # Set to true if using Azure
+      - service: "google-cloud-platform"
+        enabled: false  # Set to true if using GCP
 
-# Production monitoring and alerting
+# Production monitoring configuration
 serviceMonitor:
   enabled: true
   additionalLabels:
     prometheus: kube-prometheus
     environment: production
+    tier: platform
 
-# Enable budget alerts for production
+# Enable budget alerts for production cost control
 budgetAlertsEnabled: true
 
-# Production security settings
+# Production security contexts
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1001
@@ -110,15 +125,24 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-# Node affinity for production workloads
+# Production node affinity - Deploy on dedicated platform nodes
 affinity:
   nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: node-role.kubernetes.io/platform
+              operator: In
+              values: ["true"]
     requiredDuringSchedulingIgnoredDuringExecution:
       nodeSelectorTerms:
         - matchExpressions:
-            - key: node-role.kubernetes.io/worker
+            - key: kubernetes.io/arch
               operator: In
-              values: ["true"]
+              values: ["amd64"]
+  
+  # Pod anti-affinity for high availability
   podAntiAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 100
@@ -130,9 +154,38 @@ affinity:
                 values: ["kubecost"]
           topologyKey: kubernetes.io/hostname
 
-# Tolerations for production nodes (if applicable)
+# Production tolerations (if using dedicated nodes)
 tolerations:
   - key: "dedicated"
     operator: "Equal"
     value: "platform"
     effect: "NoSchedule"
+
+# Production priority class
+priorityClassName: "system-cluster-critical"
+
+# Production cost allocation configuration
+costAnalyzerConfig:
+  currencyCode: "USD"
+  
+  # Configure for your cloud provider
+  customPricing:
+    enabled: false
+  
+  # AWS configuration (uncomment and configure if using AWS)
+  # awsServiceKeyName: "aws-service-key"
+  # awsServiceKeySecret: "aws-secret"
+  
+  # Azure configuration (uncomment and configure if using Azure)
+  # azureSubscriptionID: "your-subscription-id"
+  # azureServiceKeyName: "azure-service-key"
+  # azureServiceKeySecret: "azure-secret"
+  
+  # GCP configuration (uncomment and configure if using GCP)
+  # gcpServiceKeyName: "gcp-service-key"
+  # gcpServiceKeySecret: "gcp-secret"
+
+# Production aggregator configuration
+kubecostAggregator:
+  enabled: true
+  aggregatorDbStorage: 25Gi
