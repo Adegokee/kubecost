@@ -27,7 +27,7 @@ spec:
     # CHANGE THIS TO YOUR ARGOCD-GITOPS REPOSITORY URL
     repoURL: https://git.edusuc.net/WEBFORX/ArgoCD-gitops
     targetRevision: main
-    path: platform-tools/kubecost/overlays/production
+    path: kubecost/overlays/production
     
     # Kustomize configuration
     kustomize:

@@ -7,7 +7,7 @@ metadata:
     config.kubernetes.io/local-config: "true"
 
 # Reference to base configuration
-bases:
+resources:
   - ../../base
 
 # Production-specific namespace
@@ -26,44 +26,31 @@ commonAnnotations:
 
 # Production-specific resources
 resources:
-  - production-values.yaml
   - monitoring.yaml
 
 # Patches for production environment
-patches:
-  # Increase resource limits for production workloads
-  - target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: cost-analyzer
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "4Gi"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/cpu
-        value: "2000m"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "1Gi"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/cpu
-        value: "500m"
-
-  # Production ingress hostname
-  - target:
-      group: networking.k8s.io
-      version: v1
-      kind: Ingress
-      name: kubecost
-    patch: |-
-      - op: replace
-        path: /spec/rules/0/host
-        value: "kubecost-prod.yourdomain.com"
-      - op: replace
-        path: /spec/tls/0/hosts/0
-        value: "kubecost-prod.yourdomain.com"
+# Note: Resource patches commented out until exact resource names from Helm chart are confirmed
+# These can be uncommented and adjusted after deployment to match actual resource names
+# patches:
+#   # Increase resource limits for production workloads
+#   - target:
+#       group: apps
+#       version: v1
+#       kind: Deployment
+#       name: kubecost-cost-analyzer  # May need adjustment based on Helm chart output
+#     patch: |-
+#       - op: replace
+#         path: /spec/template/spec/containers/0/resources/limits/memory
+#         value: "4Gi"
+#       - op: replace
+#         path: /spec/template/spec/containers/0/resources/limits/cpu
+#         value: "2000m"
+#       - op: replace
+#         path: /spec/template/spec/containers/0/resources/requests/memory
+#         value: "1Gi"
+#       - op: replace
+#         path: /spec/template/spec/containers/0/resources/requests/cpu
+#         value: "500m"
 
   # Enable high availability with multiple replicas
   - target:

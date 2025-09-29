@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: kubecost-root
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    description: "Root Kustomization for Kubecost deployment via ArgoCD"
+
+# Base resources
+resources:
+  - base
+
+# Default namespace for all resources
+namespace: kubecost
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: kubecost
+  app.kubernetes.io/instance: kubecost
+  app.kubernetes.io/part-of: platform-tools
+  app.kubernetes.io/managed-by: kustomize
+
+# Common annotations
+commonAnnotations:
+  platform-tools.io/managed-by: argocd
+  platform-tools.io/deployment-method: gitops
+
+# Name prefix for resources (optional, can be used for multi-instance deployments)
+# namePrefix: ""
+
+# Name suffix for resources (optional)
+# nameSuffix: ""
+
+# Images transformations (can be used to override image versions)
+images: []
+
+# Replicas modifier (can be overridden in overlays)
+# replicas:
+#   - name: kubecost-cost-analyzer
+#     count: 1

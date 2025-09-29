@@ -26,24 +26,27 @@ This implementation provides a **production-ready GitOps solution** for deployin
 ## 🏗️ Architecture Overview
 
 ```
-ArgoCD GitOps Repository Structure:
+Kubecost-Centric Repository Structure:
+kubecost/                               # Main kubecost directory (everything inside)
 ├── argocd-apps/
-│   └── kubecost.yaml                    # ArgoCD Application (platform-tools project)
-└── platform-tools/kubecost/
-    ├── base/                           # Base configuration
-    │   ├── kustomization.yaml          # Helm chart + Kustomize
-    │   ├── values.yaml                 # Base Kubecost config
-    │   ├── namespace.yaml              # Namespace + security labels
-    │   ├── rbac.yaml                   # ServiceAccount + ClusterRole
-    │   └── network-policy.yaml         # Network security
-    └── overlays/
-        ├── production/                 # Production environment
-        │   ├── kustomization.yaml      # Production overrides
-        │   ├── production-values.yaml  # Production configuration
-        │   └── monitoring.yaml         # Alerts + dashboards
-        └── staging/                    # Staging environment
-            ├── kustomization.yaml      # Staging overrides
-            └── staging-values.yaml     # Staging configuration
+│   └── kubecost.yaml                   # ArgoCD Application (platform-tools project)
+├── base/                               # Base configuration
+│   ├── kustomization.yaml              # Helm chart + Kustomize
+│   ├── values.yaml                     # Base Kubecost config
+│   ├── namespace.yaml                  # Namespace + security labels
+│   ├── rbac.yaml                       # ServiceAccount + ClusterRole
+│   └── network-policy.yaml             # Network security
+├── overlays/
+│   ├── production/                     # Production environment
+│   │   ├── kustomization.yaml          # Production overrides
+│   │   ├── production-values.yaml      # Production configuration
+│   │   └── monitoring.yaml             # Alerts + dashboards
+│   └── staging/                        # Staging environment
+│       ├── kustomization.yaml          # Staging overrides
+│       └── staging-values.yaml         # Staging configuration
+├── README.md                           # This documentation
+├── DEPLOYMENT_GUIDE.md                 # Deployment instructions
+└── CONSOLIDATION_SUMMARY.md            # Structure changes summary
 ```
 
 ---
@@ -177,10 +180,10 @@ kubectl get all -n kubecost
 ### Environment Switching:
 ```bash
 # Deploy to production (default)
-kubectl patch application kubecost -n argocd --type merge -p '{"spec":{"source":{"path":"platform-tools/kubecost/overlays/production"}}}'
+kubectl patch application kubecost -n argocd --type merge -p '{"spec":{"source":{"path":"overlays/production"}}}'
 
 # Deploy to staging
-kubectl patch application kubecost -n argocd --type merge -p '{"spec":{"source":{"path":"platform-tools/kubecost/overlays/staging"}}}'
+kubectl patch application kubecost -n argocd --type merge -p '{"spec":{"source":{"path":"overlays/staging"}}}'
 ```
 
 ---
