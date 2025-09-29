@@ -1,0 +1,136 @@
+# Minimal Kubecost Configuration for Resource-Constrained Clusters
+# This configuration reduces resource requirements significantly
+
+global:
+  prometheus:
+    enabled: true
+    # Disable resource-intensive components
+    nodeExporter:
+      enabled: false
+    # Reduce Prometheus retention
+    server:
+      retention: "7d"
+      persistentVolume:
+        size: 2Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+
+kubecostFrontend:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 55Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+kubecostModel:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  
+  # Reduce query complexity
+  maxQueryConcurrency: 1
+  
+  # Minimal ETL configuration
+  etl:
+    enabled: true
+    # Reduce memory usage
+    fileStoreEnabled: false
+
+# Minimal cost-analyzer configuration
+costAnalyzer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Minimal cluster controller
+clusterController:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+# Minimal network costs (if needed)
+networkCosts:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+# Disable Grafana or use minimal config
+grafana:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+  
+  # Minimal persistence
+  persistence:
+    enabled: true
+    size: 1Gi
+
+# Minimal persistent volume
+persistentVolume:
+  enabled: true
+  size: 2Gi
+  # Use default storage class
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# Disable ingress for minimal setup
+ingress:
+  enabled: false
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 9090
+
+# Disable unnecessary features
+reporting:
+  enabled: false
+
+# Minimal alerting
+alertmanager:
+  enabled: false
+
+# Security context (minimal)
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+# Node selector for smaller nodes (optional)
+# nodeSelector:
+#   kubernetes.io/arch: amd64
+
+# Tolerations (if needed)
+# tolerations: []
+
+# Affinity rules (optional)
+# affinity: {}

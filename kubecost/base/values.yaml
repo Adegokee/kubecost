@@ -29,11 +29,11 @@ kubecostFrontend:
     pullPolicy: Always
   resources:
     requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
       cpu: "100m"
       memory: "128Mi"
-    limits:
-      cpu: "200m"
-      memory: "256Mi"
 
 # Cost model configuration
 kubecostModel:
@@ -45,11 +45,11 @@ kubecostModel:
   # Resource allocation
   resources:
     requests:
-      cpu: "200m"
-      memory: "512Mi"
+      cpu: "100m"
+      memory: "256Mi"
     limits:
-      cpu: "1000m"
-      memory: "2Gi"
+      cpu: "500m"
+      memory: "1Gi"
   
   # Performance settings
   warmCache: true
@@ -73,7 +73,7 @@ service:
 
 # Ingress configuration
 ingress:
-  enabled: true
+  enabled: false
   className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"

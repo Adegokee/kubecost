@@ -1,0 +1,123 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: kubecost-minimal
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    description: "Minimal resource configuration for resource-constrained clusters"
+
+# Reference to base configuration
+resources:
+  - ../../base
+
+# Minimal resource namespace
+namespace: kubecost
+
+# Common labels
+commonLabels:
+  environment: minimal
+  tier: platform
+  resource-profile: minimal
+
+# Patches to reduce resource requirements
+patches:
+  # Reduce cost-analyzer resources
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: kubecost-cost-analyzer
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 10m
+            memory: 55Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+      - op: replace
+        path: /spec/template/spec/containers/1/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+      - op: replace
+        path: /spec/template/spec/containers/2/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+
+  # Reduce cluster-controller resources
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: kubecost-cluster-controller
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 512Mi
+
+  # Disable node exporter if running (resource intensive)
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: kubecost-prometheus-node-exporter
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 128Mi
+
+# Minimal values override
+configMapGenerator:
+  - name: kubecost-minimal-config
+    literals:
+      - |
+        # Minimal configuration
+        global:
+          # Disable expensive features for minimal deployment
+          prometheus:
+            enabled: true
+            nodeExporter:
+              enabled: false
+            serviceMonitor:
+              enabled: false
+        
+        kubecostModel:
+          # Reduce scraping frequency
+          maxQueryConcurrency: 1
+          
+        # Minimal persistence
+        persistentVolume:
+          size: 1Gi
+          storageClass: ""  # Use default storage class
+        
+        # Disable ingress for minimal setup
+        ingress:
+          enabled: false
